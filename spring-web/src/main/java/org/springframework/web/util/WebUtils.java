@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2015 the original author or authors.
+ * Copyright 2002-2016 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -33,11 +33,10 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import javax.servlet.http.HttpSession;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
-
 import org.springframework.http.HttpRequest;
+import org.springframework.http.server.ServletServerHttpRequest;
 import org.springframework.util.Assert;
+import org.springframework.util.CollectionUtils;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.util.StringUtils;
@@ -134,14 +133,12 @@ public abstract class WebUtils {
 	/** Key for the mutex session attribute */
 	public static final String SESSION_MUTEX_ATTRIBUTE = WebUtils.class.getName() + ".MUTEX";
 
-	private static final Log logger = LogFactory.getLog(WebUtils.class);
-
 
 	/**
 	 * Set a system property to the web application root directory.
 	 * The key of the system property can be defined with the "webAppRootKey"
 	 * context-param in {@code web.xml}. Default is "webapp.root".
-	 * <p>Can be used for tools that support substition with {@code System.getProperty}
+	 * <p>Can be used for tools that support substitution with {@code System.getProperty}
 	 * values, like log4j's "${key}" syntax within log file locations.
 	 * @param servletContext the servlet context of the web application
 	 * @throws IllegalStateException if the system property is already set,
@@ -187,29 +184,13 @@ public abstract class WebUtils {
 	/**
 	 * Return whether default HTML escaping is enabled for the web application,
 	 * i.e. the value of the "defaultHtmlEscape" context-param in {@code web.xml}
-	 * (if any). Falls back to {@code false} in case of no explicit default given.
-	 * @param servletContext the servlet context of the web application
-	 * @return whether default HTML escaping is enabled (default is false)
-	 * @deprecated as of Spring 4.1, in favor of {@link #getDefaultHtmlEscape}
-	 */
-	@Deprecated
-	public static boolean isDefaultHtmlEscape(ServletContext servletContext) {
-		if (servletContext == null) {
-			return false;
-		}
-		String param = servletContext.getInitParameter(HTML_ESCAPE_CONTEXT_PARAM);
-		return Boolean.valueOf(param);
-	}
-
-	/**
-	 * Return whether default HTML escaping is enabled for the web application,
-	 * i.e. the value of the "defaultHtmlEscape" context-param in {@code web.xml}
 	 * (if any).
 	 * <p>This method differentiates between no param specified at all and
 	 * an actual boolean value specified, allowing to have a context-specific
 	 * default in case of no setting at the global level.
 	 * @param servletContext the servlet context of the web application
-	 * @return whether default HTML escaping is enabled (null = no explicit default)
+	 * @return whether default HTML escaping is enabled for the given application
+	 * ({@code null} = no explicit default)
 	 */
 	public static Boolean getDefaultHtmlEscape(ServletContext servletContext) {
 		if (servletContext == null) {
@@ -229,7 +210,8 @@ public abstract class WebUtils {
 	 * an actual boolean value specified, allowing to have a context-specific
 	 * default in case of no setting at the global level.
 	 * @param servletContext the servlet context of the web application
-	 * @return whether response encoding is used for HTML escaping (null = no explicit default)
+	 * @return whether response encoding is to be used for HTML escaping
+	 * ({@code null} = no explicit default)
 	 * @since 4.1.2
 	 */
 	public static Boolean getResponseEncodedHtmlEscape(ServletContext servletContext) {
@@ -659,7 +641,7 @@ public abstract class WebUtils {
 	public static Map<String, Object> getParametersStartingWith(ServletRequest request, String prefix) {
 		Assert.notNull(request, "Request must not be null");
 		Enumeration<String> paramNames = request.getParameterNames();
-		Map<String, Object> params = new TreeMap<String, Object>();
+		Map<String, Object> params = new TreeMap<>();
 		if (prefix == null) {
 			prefix = "";
 		}
@@ -725,20 +707,23 @@ public abstract class WebUtils {
 	}
 
 	/**
-	 * Extract the full URL filename (including file extension) from the given request URL path.
-	 * Correctly resolves nested paths such as "/products/view.html" as well.
+	 * Extract the full URL filename (including file extension) from the given
+	 * request URL path. Correctly resolve nested paths such as
+	 * "/products/view.html" and remove any path and or query parameters.
 	 * @param urlPath the request URL path (e.g. "/products/index.html")
 	 * @return the extracted URI filename (e.g. "index.html")
 	 */
 	public static String extractFullFilenameFromUrlPath(String urlPath) {
-		int end = urlPath.indexOf(';');
+		int end = urlPath.indexOf('?');
 		if (end == -1) {
-			end = urlPath.indexOf('?');
+			end = urlPath.indexOf('#');
 			if (end == -1) {
 				end = urlPath.length();
 			}
 		}
 		int begin = urlPath.lastIndexOf('/', end) + 1;
+		int paramIndex = urlPath.indexOf(';', begin);
+		end = (paramIndex != -1 && paramIndex < end ? paramIndex : end);
 		return urlPath.substring(begin, end);
 	}
 
@@ -748,11 +733,11 @@ public abstract class WebUtils {
 	 * keys {@code "q1"} and {@code "q2"} with values {@code ["a","b"]} and
 	 * {@code ["a","b","c"]} respectively.
 	 * @param matrixVariables the unparsed matrix variables string
-	 * @return a map with matrix variable names and values, never {@code null}
+	 * @return a map with matrix variable names and values (never {@code null})
 	 * @since 3.2
 	 */
 	public static MultiValueMap<String, String> parseMatrixVariables(String matrixVariables) {
-		MultiValueMap<String, String> result = new LinkedMultiValueMap<String, String>();
+		MultiValueMap<String, String> result = new LinkedMultiValueMap<>();
 		if (!StringUtils.hasText(matrixVariables)) {
 			return result;
 		}
@@ -778,7 +763,7 @@ public abstract class WebUtils {
 	 * Check the given request origin against a list of allowed origins.
 	 * A list containing "*" means that all origins are allowed.
 	 * An empty list means only same origin is allowed.
-	 * @return true if the request origin is valid, false otherwise
+	 * @return {@code true} if the request origin is valid, {@code false} otherwise
 	 * @since 4.1.5
 	 * @see <a href="https://tools.ietf.org/html/rfc6454">RFC 6454: The Web Origin Concept</a>
 	 */
@@ -790,34 +775,51 @@ public abstract class WebUtils {
 		if (origin == null || allowedOrigins.contains("*")) {
 			return true;
 		}
-		else if (allowedOrigins.isEmpty()) {
-			UriComponents originComponents;
-			try {
-				originComponents = UriComponentsBuilder.fromHttpUrl(origin).build();
-			}
-			catch (IllegalArgumentException ex) {
-				if (logger.isWarnEnabled()) {
-					logger.warn("Failed to parse Origin header value [" + origin + "]");
-				}
-				return false;
-			}
-			UriComponents requestComponents = UriComponentsBuilder.fromHttpRequest(request).build();
-			int originPort = getPort(originComponents);
-			int requestPort = getPort(requestComponents);
-			return (originComponents.getHost().equals(requestComponents.getHost()) && originPort == requestPort);
+		else if (CollectionUtils.isEmpty(allowedOrigins)) {
+			return isSameOrigin(request);
 		}
 		else {
 			return allowedOrigins.contains(origin);
 		}
 	}
 
-	private static int getPort(UriComponents component) {
-		int port = component.getPort();
+	/**
+	 * Check if the request is a same-origin one, based on {@code Origin}, {@code Host},
+	 * {@code Forwarded} and {@code X-Forwarded-Host} headers.
+	 * @return {@code true} if the request is a same-origin one, {@code false} in case
+	 * of cross-origin request.
+	 * @since 4.2
+	 */
+	public static boolean isSameOrigin(HttpRequest request) {
+		String origin = request.getHeaders().getOrigin();
+		if (origin == null) {
+			return true;
+		}
+		UriComponentsBuilder urlBuilder;
+		if (request instanceof ServletServerHttpRequest) {
+			// Build more efficiently if we can: we only need scheme, host, port for origin comparison
+			HttpServletRequest servletRequest = ((ServletServerHttpRequest) request).getServletRequest();
+			urlBuilder = new UriComponentsBuilder().
+					scheme(servletRequest.getScheme()).
+					host(servletRequest.getServerName()).
+					port(servletRequest.getServerPort()).
+					adaptFromForwardedHeaders(request.getHeaders());
+		}
+		else {
+			urlBuilder = UriComponentsBuilder.fromHttpRequest(request);
+		}
+		UriComponents actualUrl = urlBuilder.build();
+		UriComponents originUrl = UriComponentsBuilder.fromOriginHeader(origin).build();
+		return (actualUrl.getHost().equals(originUrl.getHost()) && getPort(actualUrl) == getPort(originUrl));
+	}
+
+	private static int getPort(UriComponents uri) {
+		int port = uri.getPort();
 		if (port == -1) {
-			if ("http".equals(component.getScheme())) {
+			if ("http".equals(uri.getScheme()) || "ws".equals(uri.getScheme())) {
 				port = 80;
 			}
-			else if ("https".equals(component.getScheme())) {
+			else if ("https".equals(uri.getScheme()) || "wss".equals(uri.getScheme())) {
 				port = 443;
 			}
 		}

@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2015 the original author or authors.
+ * Copyright 2002-2016 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,7 +17,9 @@
 package org.springframework.messaging.simp.config;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.BeanInitializationException;
@@ -25,6 +27,7 @@ import org.springframework.context.ApplicationContext;
 import org.springframework.context.ApplicationContextAware;
 import org.springframework.context.annotation.Bean;
 import org.springframework.messaging.Message;
+import org.springframework.messaging.MessageHandler;
 import org.springframework.messaging.converter.ByteArrayMessageConverter;
 import org.springframework.messaging.converter.CompositeMessageConverter;
 import org.springframework.messaging.converter.DefaultContentTypeResolver;
@@ -37,15 +40,19 @@ import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.messaging.simp.annotation.support.SimpAnnotationMethodMessageHandler;
 import org.springframework.messaging.simp.broker.AbstractBrokerMessageHandler;
 import org.springframework.messaging.simp.broker.SimpleBrokerMessageHandler;
+import org.springframework.messaging.simp.stomp.StompBrokerRelayMessageHandler;
 import org.springframework.messaging.simp.user.DefaultUserDestinationResolver;
-import org.springframework.messaging.simp.user.DefaultUserSessionRegistry;
+import org.springframework.messaging.simp.user.MultiServerUserRegistry;
+import org.springframework.messaging.simp.user.SimpUserRegistry;
 import org.springframework.messaging.simp.user.UserDestinationMessageHandler;
 import org.springframework.messaging.simp.user.UserDestinationResolver;
-import org.springframework.messaging.simp.user.UserSessionRegistry;
+import org.springframework.messaging.simp.user.UserRegistryMessageHandler;
 import org.springframework.messaging.support.AbstractSubscribableChannel;
 import org.springframework.messaging.support.ExecutorSubscribableChannel;
 import org.springframework.messaging.support.ImmutableMessageChannelInterceptor;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
+import org.springframework.util.Assert;
 import org.springframework.util.ClassUtils;
 import org.springframework.util.MimeTypeUtils;
 import org.springframework.util.PathMatcher;
@@ -79,17 +86,17 @@ public abstract class AbstractMessageBrokerConfiguration implements ApplicationC
 
 	private static final String MVC_VALIDATOR_NAME = "mvcValidator";
 
-	private static final boolean jackson2Present= ClassUtils.isPresent(
+	private static final boolean jackson2Present = ClassUtils.isPresent(
 			"com.fasterxml.jackson.databind.ObjectMapper", AbstractMessageBrokerConfiguration.class.getClassLoader());
 
+
+	private ApplicationContext applicationContext;
 
 	private ChannelRegistration clientInboundChannelRegistration;
 
 	private ChannelRegistration clientOutboundChannelRegistration;
 
 	private MessageBrokerRegistry brokerRegistry;
-
-	private ApplicationContext applicationContext;
 
 
 	/**
@@ -238,11 +245,11 @@ public abstract class AbstractMessageBrokerConfiguration implements ApplicationC
 		handler.setMessageConverter(brokerMessageConverter());
 		handler.setValidator(simpValidator());
 
-		List<HandlerMethodArgumentResolver> argumentResolvers = new ArrayList<HandlerMethodArgumentResolver>();
+		List<HandlerMethodArgumentResolver> argumentResolvers = new ArrayList<>();
 		addArgumentResolvers(argumentResolvers);
 		handler.setCustomArgumentResolvers(argumentResolvers);
 
-		List<HandlerMethodReturnValueHandler> returnValueHandlers = new ArrayList<HandlerMethodReturnValueHandler>();
+		List<HandlerMethodReturnValueHandler> returnValueHandlers = new ArrayList<>();
 		addReturnValueHandlers(returnValueHandlers);
 		handler.setCustomReturnValueHandlers(returnValueHandlers);
 
@@ -278,13 +285,53 @@ public abstract class AbstractMessageBrokerConfiguration implements ApplicationC
 
 	@Bean
 	public AbstractBrokerMessageHandler stompBrokerRelayMessageHandler() {
-		AbstractBrokerMessageHandler handler = getBrokerRegistry().getStompBrokerRelay(brokerChannel());
-		return (handler != null ? handler : new NoOpBrokerMessageHandler());
+		StompBrokerRelayMessageHandler handler = getBrokerRegistry().getStompBrokerRelay(brokerChannel());
+		if (handler == null) {
+			return new NoOpBrokerMessageHandler();
+		}
+		Map<String, MessageHandler> subscriptions = new HashMap<>(1);
+		String destination = getBrokerRegistry().getUserDestinationBroadcast();
+		if (destination != null) {
+			subscriptions.put(destination, userDestinationMessageHandler());
+		}
+		destination = getBrokerRegistry().getUserRegistryBroadcast();
+		if (destination != null) {
+			subscriptions.put(destination, userRegistryMessageHandler());
+		}
+		handler.setSystemSubscriptions(subscriptions);
+		return handler;
 	}
 
 	@Bean
 	public UserDestinationMessageHandler userDestinationMessageHandler() {
-		return new UserDestinationMessageHandler(clientInboundChannel(), brokerChannel(), userDestinationResolver());
+		UserDestinationMessageHandler handler = new UserDestinationMessageHandler(clientInboundChannel(),
+				brokerChannel(), userDestinationResolver());
+		String destination = getBrokerRegistry().getUserDestinationBroadcast();
+		handler.setBroadcastDestination(destination);
+		return handler;
+	}
+
+	@Bean
+	public MessageHandler userRegistryMessageHandler() {
+		if (getBrokerRegistry().getUserRegistryBroadcast() == null) {
+			return new NoOpMessageHandler();
+		}
+		SimpUserRegistry userRegistry = userRegistry();
+		Assert.isInstanceOf(MultiServerUserRegistry.class, userRegistry);
+		return new UserRegistryMessageHandler((MultiServerUserRegistry) userRegistry,
+				brokerMessagingTemplate(), getBrokerRegistry().getUserRegistryBroadcast(),
+				messageBrokerTaskScheduler());
+	}
+
+	// Expose alias for 4.1 compatibility
+
+	@Bean(name={"messageBrokerTaskScheduler", "messageBrokerSockJsTaskScheduler"})
+	public ThreadPoolTaskScheduler messageBrokerTaskScheduler() {
+		ThreadPoolTaskScheduler scheduler = new ThreadPoolTaskScheduler();
+		scheduler.setThreadNamePrefix("MessageBroker-");
+		scheduler.setPoolSize(Runtime.getRuntime().availableProcessors());
+		scheduler.setRemoveOnCancelPolicy(true);
+		return scheduler;
 	}
 
 	@Bean
@@ -300,7 +347,7 @@ public abstract class AbstractMessageBrokerConfiguration implements ApplicationC
 
 	@Bean
 	public CompositeMessageConverter brokerMessageConverter() {
-		List<MessageConverter> converters = new ArrayList<MessageConverter>();
+		List<MessageConverter> converters = new ArrayList<>();
 		boolean registerDefaults = configureMessageConverters(converters);
 		if (registerDefaults) {
 			converters.add(new StringMessageConverter());
@@ -332,18 +379,25 @@ public abstract class AbstractMessageBrokerConfiguration implements ApplicationC
 
 	@Bean
 	public UserDestinationResolver userDestinationResolver() {
-		DefaultUserDestinationResolver resolver = new DefaultUserDestinationResolver(userSessionRegistry());
+		DefaultUserDestinationResolver resolver = new DefaultUserDestinationResolver(userRegistry());
 		String prefix = getBrokerRegistry().getUserDestinationPrefix();
 		if (prefix != null) {
 			resolver.setUserDestinationPrefix(prefix);
 		}
+		resolver.setPathMatcher(getBrokerRegistry().getPathMatcher());
 		return resolver;
 	}
 
 	@Bean
-	public UserSessionRegistry userSessionRegistry() {
-		return new DefaultUserSessionRegistry();
+	public SimpUserRegistry userRegistry() {
+		return (getBrokerRegistry().getUserRegistryBroadcast() != null ?
+				new MultiServerUserRegistry(createLocalUserRegistry()) : createLocalUserRegistry());
 	}
+
+	/**
+	 * Create the user registry that provides access to the local users.
+	 */
+	protected abstract SimpUserRegistry createLocalUserRegistry();
 
 	/**
 	 * Return a {@link org.springframework.validation.Validator}s instance for validating
@@ -398,6 +452,14 @@ public abstract class AbstractMessageBrokerConfiguration implements ApplicationC
 		return null;
 	}
 
+
+	private static class NoOpMessageHandler implements MessageHandler {
+
+		@Override
+		public void handleMessage(Message<?> message) {
+		}
+
+	}
 
 	private class NoOpBrokerMessageHandler extends AbstractBrokerMessageHandler {
 

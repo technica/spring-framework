@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2014 the original author or authors.
+ * Copyright 2002-2016 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -154,7 +154,7 @@ public class AnnotationMetadataTests {
 		assertThat(metadata.getSuperClassName(), nullValue());
 		assertThat(metadata.getInterfaceNames().length, is(1));
 		assertThat(metadata.getInterfaceNames()[0], is(Annotation.class.getName()));
-		assertThat(metadata.isAnnotated(Documented.class.getName()), is(true));
+		assertThat(metadata.isAnnotated(Documented.class.getName()), is(false));
 		assertThat(metadata.isAnnotated(Scope.class.getName()), is(false));
 		assertThat(metadata.isAnnotated(SpecialAttr.class.getName()), is(false));
 		assertThat(metadata.hasAnnotation(Documented.class.getName()), is(true));
@@ -194,7 +194,7 @@ public class AnnotationMetadataTests {
 
 	private void assertMetaAnnotationOverrides(AnnotationMetadata metadata) {
 		AnnotationAttributes attributes = (AnnotationAttributes) metadata.getAnnotationAttributes(
-			TestComponentScan.class.getName(), false);
+				TestComponentScan.class.getName(), false);
 		String[] basePackages = attributes.getStringArray("basePackages");
 		assertThat("length of basePackages[]", basePackages.length, is(1));
 		assertThat("basePackages[0]", basePackages[0], is("org.example.componentscan"));
@@ -292,9 +292,9 @@ public class AnnotationMetadataTests {
 		MethodMetadata method = methods.iterator().next();
 		assertEquals("direct", method.getAnnotationAttributes(DirectAnnotation.class.getName()).get("value"));
 		List<Object> allMeta = method.getAllAnnotationAttributes(DirectAnnotation.class.getName()).get("value");
-		assertThat(new HashSet<Object>(allMeta), is(equalTo(new HashSet<Object>(Arrays.asList("direct", "meta")))));
+		assertThat(new HashSet<>(allMeta), is(equalTo(new HashSet<Object>(Arrays.asList("direct", "meta")))));
 		allMeta = method.getAllAnnotationAttributes(DirectAnnotation.class.getName()).get("additional");
-		assertThat(new HashSet<Object>(allMeta), is(equalTo(new HashSet<Object>(Arrays.asList("direct")))));
+		assertThat(new HashSet<>(allMeta), is(equalTo(new HashSet<Object>(Arrays.asList("direct")))));
 
 		assertTrue(metadata.isAnnotated(IsAnnotatedAnnotation.class.getName()));
 
@@ -334,9 +334,9 @@ public class AnnotationMetadataTests {
 
 			assertEquals("direct", metadata.getAnnotationAttributes(DirectAnnotation.class.getName()).get("value"));
 			allMeta = metadata.getAllAnnotationAttributes(DirectAnnotation.class.getName()).get("value");
-			assertThat(new HashSet<Object>(allMeta), is(equalTo(new HashSet<Object>(Arrays.asList("direct", "meta")))));
+			assertThat(new HashSet<>(allMeta), is(equalTo(new HashSet<Object>(Arrays.asList("direct", "meta")))));
 			allMeta = metadata.getAllAnnotationAttributes(DirectAnnotation.class.getName()).get("additional");
-			assertThat(new HashSet<Object>(allMeta), is(equalTo(new HashSet<Object>(Arrays.asList("direct")))));
+			assertThat(new HashSet<>(allMeta), is(equalTo(new HashSet<Object>(Arrays.asList("direct")))));
 		}
 		{ // perform tests with classValuesAsString = true
 			AnnotationAttributes specialAttrs = (AnnotationAttributes) metadata.getAnnotationAttributes(
@@ -365,7 +365,7 @@ public class AnnotationMetadataTests {
 
 			assertEquals(metadata.getAnnotationAttributes(DirectAnnotation.class.getName()).get("value"), "direct");
 			allMeta = metadata.getAllAnnotationAttributes(DirectAnnotation.class.getName()).get("value");
-			assertThat(new HashSet<Object>(allMeta), is(equalTo(new HashSet<Object>(Arrays.asList("direct", "meta")))));
+			assertThat(new HashSet<>(allMeta), is(equalTo(new HashSet<Object>(Arrays.asList("direct", "meta")))));
 		}
 	}
 

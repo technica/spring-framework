@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2014 the original author or authors.
+ * Copyright 2002-2016 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -43,8 +43,8 @@ import org.springframework.util.ClassUtils;
  * up a shared JPA EntityManagerFactory in a Spring application context;
  * the EntityManagerFactory can then be passed to JPA-based DAOs via
  * dependency injection. Note that switching to a JNDI lookup or to a
- * {@link LocalEntityManagerFactoryBean}
- * definition is just a matter of configuration!
+ * {@link LocalEntityManagerFactoryBean} definition is just a matter of
+ * configuration!
  *
  * <p>As with {@link LocalEntityManagerFactoryBean}, configuration settings
  * are usually read in from a {@code META-INF/persistence.xml} config file,
@@ -173,7 +173,7 @@ public class LocalContainerEntityManagerFactoryBean extends AbstractEntityManage
 	}
 
 	/**
-	 * Specify one or more mapping resources (equivalent to {@code &lt;mapping-file&gt;}
+	 * Specify one or more mapping resources (equivalent to {@code <mapping-file>}
 	 * entries in {@code persistence.xml}) for the default persistence unit.
 	 * Can be used on its own or in combination with entity scanning in the classpath,
 	 * in both cases avoiding {@code persistence.xml}.
@@ -279,7 +279,7 @@ public class LocalContainerEntityManagerFactoryBean extends AbstractEntityManage
 	 * InstrumentationLoadTimeWeaver, which requires a Spring-specific (but very general)
 	 * VM agent specified on JVM startup, and ReflectiveLoadTimeWeaver, which interacts
 	 * with an underlying ClassLoader based on specific extended methods being available
-	 * on it (for example, interacting with Spring's TomcatInstrumentableClassLoader).
+	 * on it.
 	 * <p><b>NOTE:</b> As of Spring 2.5, the context's default LoadTimeWeaver (defined
 	 * as bean with name "loadTimeWeaver") will be picked up automatically, if available,
 	 * removing the need for LoadTimeWeaver configuration on each affected target bean.</b>
@@ -290,7 +290,6 @@ public class LocalContainerEntityManagerFactoryBean extends AbstractEntityManage
 	 * is responsible for the weaving configuration.
 	 * @see org.springframework.instrument.classloading.InstrumentationLoadTimeWeaver
 	 * @see org.springframework.instrument.classloading.ReflectiveLoadTimeWeaver
-	 * @see org.springframework.instrument.classloading.tomcat.TomcatInstrumentableClassLoader
 	 */
 	@Override
 	public void setLoadTimeWeaver(LoadTimeWeaver loadTimeWeaver) {
@@ -329,21 +328,16 @@ public class LocalContainerEntityManagerFactoryBean extends AbstractEntityManage
 			Class<?> providerClass = ClassUtils.resolveClassName(providerClassName, getBeanClassLoader());
 			provider = (PersistenceProvider) BeanUtils.instantiateClass(providerClass);
 		}
-		if (provider == null) {
-			throw new IllegalStateException("Unable to determine persistence provider. " +
-					"Please check configuration of " + getClass().getName() + "; " +
-					"ideally specify the appropriate JpaVendorAdapter class for this provider.");
-		}
 
 		if (logger.isInfoEnabled()) {
 			logger.info("Building JPA container EntityManagerFactory for persistence unit '" +
 					this.persistenceUnitInfo.getPersistenceUnitName() + "'");
 		}
-		this.nativeEntityManagerFactory =
+		EntityManagerFactory emf =
 				provider.createContainerEntityManagerFactory(this.persistenceUnitInfo, getJpaPropertyMap());
-		postProcessEntityManagerFactory(this.nativeEntityManagerFactory, this.persistenceUnitInfo);
+		postProcessEntityManagerFactory(emf, this.persistenceUnitInfo);
 
-		return this.nativeEntityManagerFactory;
+		return emf;
 	}
 
 

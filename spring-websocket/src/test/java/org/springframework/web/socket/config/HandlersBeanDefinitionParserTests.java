@@ -18,14 +18,11 @@ package org.springframework.web.socket.config;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ScheduledFuture;
 
-import static org.junit.Assert.assertEquals;
-import org.junit.Before;
 import org.junit.Test;
 
 import org.springframework.beans.factory.xml.XmlBeanDefinitionReader;
@@ -77,13 +74,7 @@ import static org.junit.Assert.*;
  */
 public class HandlersBeanDefinitionParserTests {
 
-	private GenericWebApplicationContext appContext;
-
-
-	@Before
-	public void setup() {
-		this.appContext = new GenericWebApplicationContext();
-	}
+	private final GenericWebApplicationContext appContext = new GenericWebApplicationContext();
 
 
 	@Test
@@ -230,13 +221,16 @@ public class HandlersBeanDefinitionParserTests {
 		assertEquals(256, transportService.getDisconnectDelay());
 		assertEquals(1024, transportService.getHttpMessageCacheSize());
 		assertEquals(20, transportService.getHeartbeatTime());
+		assertEquals("/js/sockjs.min.js", transportService.getSockJsClientLibraryUrl());
 		assertEquals(TestMessageCodec.class, transportService.getMessageCodec().getClass());
 
 		List<HandshakeInterceptor> interceptors = transportService.getHandshakeInterceptors();
 		assertThat(interceptors, contains(instanceOf(OriginHandshakeInterceptor.class)));
-		assertEquals(Arrays.asList("http://mydomain1.com", "http://mydomain2.com"), transportService.getAllowedOrigins());
 		assertTrue(transportService.shouldSuppressCors());
+		assertTrue(transportService.getAllowedOrigins().contains("http://mydomain1.com"));
+		assertTrue(transportService.getAllowedOrigins().contains("http://mydomain2.com"));
 	}
+
 
 	private void loadBeanDefinitions(String fileName) {
 		XmlBeanDefinitionReader reader = new XmlBeanDefinitionReader(this.appContext);
@@ -278,8 +272,10 @@ class TestWebSocketHandler implements WebSocketHandler {
 	}
 }
 
+
 class FooWebSocketHandler extends TestWebSocketHandler {
 }
+
 
 class TestHandshakeHandler implements HandshakeHandler {
 
@@ -291,8 +287,10 @@ class TestHandshakeHandler implements HandshakeHandler {
 	}
 }
 
+
 class TestChannelInterceptor extends ChannelInterceptorAdapter {
 }
+
 
 class FooTestInterceptor implements HandshakeInterceptor {
 
@@ -309,8 +307,10 @@ class FooTestInterceptor implements HandshakeInterceptor {
 	}
 }
 
+
 class BarTestInterceptor extends FooTestInterceptor {
 }
+
 
 @SuppressWarnings({ "unchecked", "rawtypes" })
 class TestTaskScheduler implements TaskScheduler {
@@ -344,8 +344,8 @@ class TestTaskScheduler implements TaskScheduler {
 	public ScheduledFuture scheduleWithFixedDelay(Runnable task, long delay) {
 		return null;
 	}
-
 }
+
 
 class TestMessageCodec implements SockJsMessageCodec {
 

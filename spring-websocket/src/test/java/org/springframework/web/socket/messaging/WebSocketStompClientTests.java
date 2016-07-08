@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2015 the original author or authors.
+ * Copyright 2002-2016 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,13 +13,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.springframework.web.socket.messaging;
 
-import static org.junit.Assert.*;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.isNotNull;
-import static org.mockito.Matchers.same;
-import static org.mockito.Mockito.*;
+package org.springframework.web.socket.messaging;
 
 import java.net.URI;
 import java.nio.charset.Charset;
@@ -27,7 +22,6 @@ import java.util.concurrent.ScheduledFuture;
 
 import org.junit.Before;
 import org.junit.Test;
-
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
@@ -51,6 +45,9 @@ import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketHandler;
 import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.client.WebSocketClient;
+
+import static org.junit.Assert.*;
+import static org.mockito.Mockito.*;
 
 /**
  * Unit tests for {@link WebSocketStompClient}.
@@ -92,6 +89,7 @@ public class WebSocketStompClientTests {
 		when(webSocketClient.doHandshake(this.webSocketHandlerCaptor.capture(), any(), any(URI.class)))
 				.thenReturn(this.handshakeFuture);
 	}
+
 
 	@Test
 	public void webSocketHandshakeFailure() throws Exception {
@@ -248,9 +246,9 @@ public class WebSocketStompClientTests {
 		stompClient.setDefaultHeartbeat(new long[] {5, 5});
 		try {
 			stompClient.processConnectHeaders(null);
-			fail("Expected exception");
+			fail("Expected IllegalStateException");
 		}
-		catch (IllegalArgumentException ex) {
+		catch (IllegalStateException ex) {
 			// Ignore
 		}
 	}
@@ -310,7 +308,6 @@ public class WebSocketStompClientTests {
 
 
 	private WebSocketHandler connect() {
-
 		this.stompClient.connect("/foo", mock(StompSessionHandler.class));
 
 		verify(this.stompSession).getSessionFuture();
@@ -355,7 +352,6 @@ public class WebSocketStompClientTests {
 	private static class TestWebSocketStompClient extends WebSocketStompClient {
 
 		private ConnectionHandlingStompSession stompSession;
-
 
 		public TestWebSocketStompClient(WebSocketClient webSocketClient) {
 			super(webSocketClient);

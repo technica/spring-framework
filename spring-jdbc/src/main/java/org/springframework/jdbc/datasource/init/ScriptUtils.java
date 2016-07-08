@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2015 the original author or authors.
+ * Copyright 2002-2016 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,6 +20,7 @@ import java.io.IOException;
 import java.io.LineNumberReader;
 import java.sql.Connection;
 import java.sql.SQLException;
+import java.sql.SQLWarning;
 import java.sql.Statement;
 import java.util.LinkedList;
 import java.util.List;
@@ -33,8 +34,9 @@ import org.springframework.util.Assert;
 import org.springframework.util.StringUtils;
 
 /**
- * Generic utility methods for working with SQL scripts. Mainly for internal use
- * within the framework.
+ * Generic utility methods for working with SQL scripts.
+ *
+ * <p>Mainly for internal use within the framework.
  *
  * @author Thomas Risberg
  * @author Sam Brannen
@@ -44,6 +46,7 @@ import org.springframework.util.StringUtils;
  * @author Chris Beams
  * @author Oliver Gierke
  * @author Chris Baldwin
+ * @author Nicolas Debeissat
  * @since 4.0.3
  */
 public abstract class ScriptUtils {
@@ -172,7 +175,8 @@ public abstract class ScriptUtils {
 		Assert.hasText(blockCommentEndDelimiter, "blockCommentEndDelimiter must not be null or empty");
 
 		StringBuilder sb = new StringBuilder();
-		boolean inLiteral = false;
+		boolean inSingleQuote = false;
+		boolean inDoubleQuote = false;
 		boolean inEscape = false;
 		char[] content = script.toCharArray();
 		for (int i = 0; i < script.length(); i++) {
@@ -188,10 +192,13 @@ public abstract class ScriptUtils {
 				sb.append(c);
 				continue;
 			}
-			if (c == '\'') {
-				inLiteral = !inLiteral;
+			if (!inDoubleQuote && (c == '\'')) {
+				inSingleQuote = !inSingleQuote;
 			}
-			if (!inLiteral) {
+			else if (!inSingleQuote && (c == '"')) {
+				inDoubleQuote = !inDoubleQuote;
+			}
+			if (!inSingleQuote && !inDoubleQuote) {
 				if (script.startsWith(separator, i)) {
 					// we've reached the end of the current statement
 					if (sb.length() > 0) {
@@ -352,7 +359,8 @@ public abstract class ScriptUtils {
 	 * separators, comment delimiters, and exception handling flags.
 	 * <p>Statement separators and comments will be removed before executing
 	 * individual statements within the supplied script.
-	 * <p><b>Do not use this method to execute DDL if you expect rollback.</b>
+	 * <p><strong>Warning</strong>: this method does <em>not</em> release the
+	 * provided {@link Connection}.
 	 * @param connection the JDBC connection to use to execute the script; already
 	 * configured and ready to use
 	 * @param resource the resource to load the SQL script from; encoded with the
@@ -363,6 +371,8 @@ public abstract class ScriptUtils {
 	 * @see #DEFAULT_COMMENT_PREFIX
 	 * @see #DEFAULT_BLOCK_COMMENT_START_DELIMITER
 	 * @see #DEFAULT_BLOCK_COMMENT_END_DELIMITER
+	 * @see org.springframework.jdbc.datasource.DataSourceUtils#getConnection
+	 * @see org.springframework.jdbc.datasource.DataSourceUtils#releaseConnection
 	 */
 	public static void executeSqlScript(Connection connection, Resource resource) throws ScriptException {
 		executeSqlScript(connection, new EncodedResource(resource));
@@ -373,7 +383,8 @@ public abstract class ScriptUtils {
 	 * separators, comment delimiters, and exception handling flags.
 	 * <p>Statement separators and comments will be removed before executing
 	 * individual statements within the supplied script.
-	 * <p><b>Do not use this method to execute DDL if you expect rollback.</b>
+	 * <p><strong>Warning</strong>: this method does <em>not</em> release the
+	 * provided {@link Connection}.
 	 * @param connection the JDBC connection to use to execute the script; already
 	 * configured and ready to use
 	 * @param resource the resource (potentially associated with a specific encoding)
@@ -384,17 +395,20 @@ public abstract class ScriptUtils {
 	 * @see #DEFAULT_COMMENT_PREFIX
 	 * @see #DEFAULT_BLOCK_COMMENT_START_DELIMITER
 	 * @see #DEFAULT_BLOCK_COMMENT_END_DELIMITER
+	 * @see org.springframework.jdbc.datasource.DataSourceUtils#getConnection
+	 * @see org.springframework.jdbc.datasource.DataSourceUtils#releaseConnection
 	 */
 	public static void executeSqlScript(Connection connection, EncodedResource resource) throws ScriptException {
 		executeSqlScript(connection, resource, false, false, DEFAULT_COMMENT_PREFIX, DEFAULT_STATEMENT_SEPARATOR,
-			DEFAULT_BLOCK_COMMENT_START_DELIMITER, DEFAULT_BLOCK_COMMENT_END_DELIMITER);
+				DEFAULT_BLOCK_COMMENT_START_DELIMITER, DEFAULT_BLOCK_COMMENT_END_DELIMITER);
 	}
 
 	/**
 	 * Execute the given SQL script.
 	 * <p>Statement separators and comments will be removed before executing
 	 * individual statements within the supplied script.
-	 * <p><b>Do not use this method to execute DDL if you expect rollback.</b>
+	 * <p><strong>Warning</strong>: this method does <em>not</em> release the
+	 * provided {@link Connection}.
 	 * @param connection the JDBC connection to use to execute the script; already
 	 * configured and ready to use
 	 * @param resource the resource (potentially associated with a specific encoding)
@@ -418,6 +432,8 @@ public abstract class ScriptUtils {
 	 * @see #DEFAULT_STATEMENT_SEPARATOR
 	 * @see #FALLBACK_STATEMENT_SEPARATOR
 	 * @see #EOF_STATEMENT_SEPARATOR
+	 * @see org.springframework.jdbc.datasource.DataSourceUtils#getConnection
+	 * @see org.springframework.jdbc.datasource.DataSourceUtils#releaseConnection
 	 */
 	public static void executeSqlScript(Connection connection, EncodedResource resource, boolean continueOnError,
 			boolean ignoreFailedDrops, String commentPrefix, String separator, String blockCommentStartDelimiter,
@@ -444,7 +460,7 @@ public abstract class ScriptUtils {
 				separator = FALLBACK_STATEMENT_SEPARATOR;
 			}
 
-			List<String> statements = new LinkedList<String>();
+			List<String> statements = new LinkedList<>();
 			splitSqlScript(resource, script, separator, commentPrefix, blockCommentStartDelimiter,
 					blockCommentEndDelimiter, statements);
 
@@ -457,7 +473,14 @@ public abstract class ScriptUtils {
 						stmt.execute(statement);
 						int rowsAffected = stmt.getUpdateCount();
 						if (logger.isDebugEnabled()) {
-							logger.debug(rowsAffected + " returned as updateCount for SQL: " + statement);
+							logger.debug(rowsAffected + " returned as update count for SQL: " + statement);
+							SQLWarning warningToLog = stmt.getWarnings();
+							while (warningToLog != null) {
+								logger.debug("SQLWarning ignored: SQL state '" + warningToLog.getSQLState() +
+										"', error code '" + warningToLog.getErrorCode() +
+										"', message [" + warningToLog.getMessage() + "]");
+								warningToLog = warningToLog.getNextWarning();
+							}
 						}
 					}
 					catch (SQLException ex) {

@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2012 the original author or authors.
+ * Copyright 2002-2016 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -159,14 +159,14 @@ public class CustomCollectionEditor extends PropertyEditorSupport {
 						"Could not instantiate collection class [" + collectionType.getName() + "]: " + ex.getMessage());
 			}
 		}
-		else if (List.class.equals(collectionType)) {
-			return new ArrayList<Object>(initialCapacity);
+		else if (List.class == collectionType) {
+			return new ArrayList<>(initialCapacity);
 		}
-		else if (SortedSet.class.equals(collectionType)) {
-			return new TreeSet<Object>();
+		else if (SortedSet.class == collectionType) {
+			return new TreeSet<>();
 		}
 		else {
-			return new LinkedHashSet<Object>(initialCapacity);
+			return new LinkedHashSet<>(initialCapacity);
 		}
 	}
 

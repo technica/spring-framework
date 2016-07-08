@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2013 the original author or authors.
+ * Copyright 2002-2016 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -35,17 +35,22 @@ import org.junit.rules.ExpectedException;
  * @author Erwin Vervaet
  * @author Rick Evans
  * @author Arjen Poutsma
+ * @author Sam Brannen
  */
 public class AssertTests {
 
 	@Rule
 	public ExpectedException thrown = ExpectedException.none();
 
-	@Test(expected = IllegalArgumentException.class)
+
+	@Test
 	public void instanceOf() {
-		final Set<?> set = new HashSet<Object>();
-		Assert.isInstanceOf(HashSet.class, set);
-		Assert.isInstanceOf(HashMap.class, set);
+		Assert.isInstanceOf(HashSet.class, new HashSet<>());
+	}
+
+	@Test(expected = IllegalArgumentException.class)
+	public void instanceOfWithTypeMismatch() {
+		Assert.isInstanceOf(HashMap.class, new HashSet<>());
 	}
 
 	@Test
@@ -131,12 +136,12 @@ public class AssertTests {
 
 	@Test(expected = IllegalArgumentException.class)
 	public void assertNotEmptyWithEmptyCollectionThrowsException() throws Exception {
-		Assert.notEmpty(new ArrayList<Object>());
+		Assert.notEmpty(new ArrayList<>());
 	}
 
 	@Test
 	public void assertNotEmptyWithCollectionSunnyDay() throws Exception {
-		List<String> collection = new ArrayList<String>();
+		List<String> collection = new ArrayList<>();
 		collection.add("");
 		Assert.notEmpty(collection);
 	}
@@ -148,12 +153,12 @@ public class AssertTests {
 
 	@Test(expected = IllegalArgumentException.class)
 	public void assertNotEmptyWithEmptyMapThrowsException() throws Exception {
-		Assert.notEmpty(new HashMap<Object, Object>());
+		Assert.notEmpty(new HashMap<>());
 	}
 
 	@Test
 	public void assertNotEmptyWithMapSunnyDay() throws Exception {
-		Map<String, String> map = new HashMap<String, String>();
+		Map<String, String> map = new HashMap<>();
 		map.put("", "");
 		Assert.notEmpty(map);
 	}

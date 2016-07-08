@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2015 the original author or authors.
+ * Copyright 2002-2016 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,17 +16,10 @@
 
 package org.springframework.web.util;
 
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.nullValue;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertThat;
-import static org.junit.Assert.assertTrue;
-
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -39,12 +32,17 @@ import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.util.StringUtils;
 
+import static org.hamcrest.Matchers.*;
+import static org.junit.Assert.*;
+
 /**
  * Unit tests for {@link org.springframework.web.util.UriComponentsBuilder}.
  *
  * @author Arjen Poutsma
  * @author Phillip Webb
  * @author Oliver Gierke
+ * @author David Eckel
+ * @author Sam Brannen
  */
 public class UriComponentsBuilderTests {
 
@@ -159,7 +157,7 @@ public class UriComponentsBuilderTests {
 		assertEquals(80, result.getPort());
 		assertEquals("/javase/6/docs/api/java/util/BitSet.html", result.getPath());
 		assertEquals("foo=bar", result.getQuery());
-		MultiValueMap<String, String> expectedQueryParams = new LinkedMultiValueMap<String, String>(1);
+		MultiValueMap<String, String> expectedQueryParams = new LinkedMultiValueMap<>(1);
 		expectedQueryParams.add("foo", "bar");
 		assertEquals(expectedQueryParams, result.getQueryParams());
 		assertEquals("and(java.util.BitSet)", result.getFragment());
@@ -496,7 +494,7 @@ public class UriComponentsBuilderTests {
 		UriComponents result = builder.build();
 
 		assertEquals("/foo/", result.getPath());
-		assertEquals(Arrays.asList("foo"), result.getPathSegments());
+		assertEquals(Collections.singletonList("foo"), result.getPathSegments());
 	}
 
 	@Test
@@ -552,7 +550,7 @@ public class UriComponentsBuilderTests {
 		UriComponents result = builder.queryParam("baz", "qux", 42).build();
 
 		assertEquals("baz=qux&baz=42", result.getQuery());
-		MultiValueMap<String, String> expectedQueryParams = new LinkedMultiValueMap<String, String>(2);
+		MultiValueMap<String, String> expectedQueryParams = new LinkedMultiValueMap<>(2);
 		expectedQueryParams.add("baz", "qux");
 		expectedQueryParams.add("baz", "42");
 		assertEquals(expectedQueryParams, result.getQueryParams());
@@ -564,7 +562,7 @@ public class UriComponentsBuilderTests {
 		UriComponents result = builder.queryParam("baz").build();
 
 		assertEquals("baz", result.getQuery());
-		MultiValueMap<String, String> expectedQueryParams = new LinkedMultiValueMap<String, String>(2);
+		MultiValueMap<String, String> expectedQueryParams = new LinkedMultiValueMap<>(2);
 		expectedQueryParams.add("baz", null);
 		assertEquals(expectedQueryParams, result.getQueryParams());
 	}
@@ -589,7 +587,7 @@ public class UriComponentsBuilderTests {
 		UriComponents result = UriComponentsBuilder.fromPath("/{foo}").buildAndExpand("fooValue");
 		assertEquals("/fooValue", result.toUriString());
 
-		Map<String, String> values = new HashMap<String, String>();
+		Map<String, String> values = new HashMap<>();
 		values.put("foo", "fooValue");
 		values.put("bar", "barValue");
 		result = UriComponentsBuilder.fromPath("/{foo}/{bar}").buildAndExpand(values);
@@ -601,7 +599,7 @@ public class UriComponentsBuilderTests {
 		UriComponents result = UriComponentsBuilder.fromUriString("mailto:{user}@{domain}").buildAndExpand("foo", "example.com");
 		assertEquals("mailto:foo@example.com", result.toUriString());
 
-		Map<String, String> values = new HashMap<String, String>();
+		Map<String, String> values = new HashMap<>();
 		values.put("user", "foo");
 		values.put("domain", "example.com");
 		UriComponentsBuilder.fromUriString("mailto:{user}@{domain}").buildAndExpand(values);
@@ -612,18 +610,23 @@ public class UriComponentsBuilderTests {
 	public void queryParamWithValueWithEquals() throws Exception {
 		UriComponents uriComponents = UriComponentsBuilder.fromUriString("http://example.com/foo?bar=baz").build();
 		assertThat(uriComponents.toUriString(), equalTo("http://example.com/foo?bar=baz"));
+		assertThat(uriComponents.getQueryParams().get("bar").get(0), equalTo("baz"));
 	}
 
 	@Test
 	public void queryParamWithoutValueWithEquals() throws Exception {
 		UriComponents uriComponents = UriComponentsBuilder.fromUriString("http://example.com/foo?bar=").build();
 		assertThat(uriComponents.toUriString(), equalTo("http://example.com/foo?bar="));
+		assertThat(uriComponents.getQueryParams().get("bar").get(0), equalTo(""));
 	}
 
 	@Test
 	public void queryParamWithoutValueWithoutEquals() throws Exception {
 		UriComponents uriComponents = UriComponentsBuilder.fromUriString("http://example.com/foo?bar").build();
 		assertThat(uriComponents.toUriString(), equalTo("http://example.com/foo?bar"));
+
+		// TODO [SPR-13537] Change equalTo(null) to equalTo("").
+		assertThat(uriComponents.getQueryParams().get("bar").get(0), equalTo(null));
 	}
 
 	@Test
@@ -654,6 +657,12 @@ public class UriComponentsBuilderTests {
 		assertThat(components.toString(), equalTo("/example"));
 	}
 
+	@Test  // SPR-13257
+	public void parsesEmptyUri() {
+		UriComponents components = UriComponentsBuilder.fromUriString("").build();
+		assertThat(components.toString(), equalTo(""));
+	}
+
 	@Test
 	public void testClone() throws URISyntaxException {
 		UriComponentsBuilder builder1 = UriComponentsBuilder.newInstance();
@@ -675,6 +684,73 @@ public class UriComponentsBuilderTests {
 		assertEquals("/p1/ps1/p2/ps2", result2.getPath());
 		assertEquals("q1&q2", result2.getQuery());
 		assertEquals("f2", result2.getFragment());
+	}
+
+	// SPR-11856
+
+	@Test
+	public void fromHttpRequestForwardedHeader() throws Exception {
+		MockHttpServletRequest request = new MockHttpServletRequest();
+		request.addHeader("Forwarded", "proto=https; host=84.198.58.199");
+		request.setScheme("http");
+		request.setServerName("example.com");
+		request.setRequestURI("/rest/mobile/users/1");
+
+		HttpRequest httpRequest = new ServletServerHttpRequest(request);
+		UriComponents result = UriComponentsBuilder.fromHttpRequest(httpRequest).build();
+
+		assertEquals("https", result.getScheme());
+		assertEquals("84.198.58.199", result.getHost());
+		assertEquals("/rest/mobile/users/1", result.getPath());
+	}
+
+	@Test
+	public void fromHttpRequestForwardedHeaderQuoted() throws Exception {
+		MockHttpServletRequest request = new MockHttpServletRequest();
+		request.addHeader("Forwarded", "proto=\"https\"; host=\"84.198.58.199\"");
+		request.setScheme("http");
+		request.setServerName("example.com");
+		request.setRequestURI("/rest/mobile/users/1");
+
+		HttpRequest httpRequest = new ServletServerHttpRequest(request);
+		UriComponents result = UriComponentsBuilder.fromHttpRequest(httpRequest).build();
+
+		assertEquals("https", result.getScheme());
+		assertEquals("84.198.58.199", result.getHost());
+		assertEquals("/rest/mobile/users/1", result.getPath());
+	}
+
+	@Test
+	public void fromHttpRequestMultipleForwardedHeader() throws Exception {
+		MockHttpServletRequest request = new MockHttpServletRequest();
+		request.addHeader("Forwarded", "host=84.198.58.199;proto=https");
+		request.addHeader("Forwarded", "proto=ftp; host=1.2.3.4");
+		request.setScheme("http");
+		request.setServerName("example.com");
+		request.setRequestURI("/rest/mobile/users/1");
+
+		HttpRequest httpRequest = new ServletServerHttpRequest(request);
+		UriComponents result = UriComponentsBuilder.fromHttpRequest(httpRequest).build();
+
+		assertEquals("https", result.getScheme());
+		assertEquals("84.198.58.199", result.getHost());
+		assertEquals("/rest/mobile/users/1", result.getPath());
+	}
+
+	@Test
+	public void fromHttpRequestMultipleForwardedHeaderComma() throws Exception {
+		MockHttpServletRequest request = new MockHttpServletRequest();
+		request.addHeader("Forwarded", "host=84.198.58.199 ;proto=https, proto=ftp; host=1.2.3.4");
+		request.setScheme("http");
+		request.setServerName("example.com");
+		request.setRequestURI("/rest/mobile/users/1");
+
+		HttpRequest httpRequest = new ServletServerHttpRequest(request);
+		UriComponents result = UriComponentsBuilder.fromHttpRequest(httpRequest).build();
+
+		assertEquals("https", result.getScheme());
+		assertEquals("84.198.58.199", result.getHost());
+		assertEquals("/rest/mobile/users/1", result.getPath());
 	}
 
 }

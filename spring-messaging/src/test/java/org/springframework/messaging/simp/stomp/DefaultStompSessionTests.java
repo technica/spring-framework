@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2015 the original author or authors.
+ * Copyright 2002-2016 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,12 +13,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package org.springframework.messaging.simp.stomp;
 
 import static org.hamcrest.Matchers.*;
 import static org.junit.Assert.*;
 import static org.mockito.Matchers.any;
-import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.*;
 
 import java.nio.charset.Charset;
@@ -40,6 +40,7 @@ import org.mockito.MockitoAnnotations;
 import org.springframework.messaging.Message;
 import org.springframework.messaging.MessageDeliveryException;
 import org.springframework.messaging.converter.MessageConversionException;
+import org.springframework.messaging.converter.StringMessageConverter;
 import org.springframework.messaging.simp.stomp.StompSession.Receiptable;
 import org.springframework.messaging.simp.stomp.StompSession.Subscription;
 import org.springframework.messaging.support.MessageBuilder;
@@ -85,6 +86,7 @@ public class DefaultStompSessionTests {
 		this.sessionHandler = mock(StompSessionHandler.class);
 		this.connectHeaders = new StompHeaders();
 		this.session = new DefaultStompSession(this.sessionHandler, this.connectHeaders);
+		this.session.setMessageConverter(new StringMessageConverter());
 
 		SettableListenableFuture<Void> future = new SettableListenableFuture<>();
 		future.set(null);
@@ -487,6 +489,42 @@ public class DefaultStompSessionTests {
 		StompHeaders stompHeaders = StompHeaders.readOnlyStompHeaders(accessor.getNativeHeaders());
 		assertEquals(stompHeaders.toString(), 1, stompHeaders.size());
 		assertEquals(subscription.getSubscriptionId(), stompHeaders.getId());
+	}
+
+	@Test
+	public void ack() throws Exception {
+
+		this.session.afterConnected(this.connection);
+		assertTrue(this.session.isConnected());
+
+		String messageId = "123";
+		this.session.acknowledge(messageId, true);
+
+		Message<byte[]> message = this.messageCaptor.getValue();
+		StompHeaderAccessor accessor = MessageHeaderAccessor.getAccessor(message, StompHeaderAccessor.class);
+		assertEquals(StompCommand.ACK, accessor.getCommand());
+
+		StompHeaders stompHeaders = StompHeaders.readOnlyStompHeaders(accessor.getNativeHeaders());
+		assertEquals(stompHeaders.toString(), 1, stompHeaders.size());
+		assertEquals(messageId, stompHeaders.getId());
+	}
+
+	@Test
+	public void nack() throws Exception {
+
+		this.session.afterConnected(this.connection);
+		assertTrue(this.session.isConnected());
+
+		String messageId = "123";
+		this.session.acknowledge(messageId, false);
+
+		Message<byte[]> message = this.messageCaptor.getValue();
+		StompHeaderAccessor accessor = MessageHeaderAccessor.getAccessor(message, StompHeaderAccessor.class);
+		assertEquals(StompCommand.NACK, accessor.getCommand());
+
+		StompHeaders stompHeaders = StompHeaders.readOnlyStompHeaders(accessor.getNativeHeaders());
+		assertEquals(stompHeaders.toString(), 1, stompHeaders.size());
+		assertEquals(messageId, stompHeaders.getId());
 	}
 
 	@Test

@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2014 the original author or authors.
+ * Copyright 2002-2016 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,7 +17,7 @@
 package org.springframework.http.server;
 
 import java.nio.charset.Charset;
-import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 import org.junit.Before;
@@ -33,6 +33,8 @@ import static org.junit.Assert.*;
 
 /**
  * @author Arjen Poutsma
+ * @author Rossen Stoyanchev
+ * @author Juergen Hoeller
  */
 public class ServletServerHttpResponseTests {
 
@@ -40,11 +42,13 @@ public class ServletServerHttpResponseTests {
 
 	private MockHttpServletResponse mockResponse;
 
+
 	@Before
 	public void create() throws Exception {
 		mockResponse = new MockHttpServletResponse();
 		response = new ServletServerHttpResponse(mockResponse);
 	}
+
 
 	@Test
 	public void setStatusCode() throws Exception {
@@ -73,8 +77,7 @@ public class ServletServerHttpResponseTests {
 	}
 
 	@Test
-	public void getHeadersFromHttpServletResponse() {
-
+	public void preExistingHeadersFromHttpServletResponse() {
 		String headerName = "Access-Control-Allow-Origin";
 		String headerValue = "localhost:8080";
 
@@ -82,7 +85,10 @@ public class ServletServerHttpResponseTests {
 		this.response = new ServletServerHttpResponse(this.mockResponse);
 
 		assertEquals(headerValue, this.response.getHeaders().getFirst(headerName));
-		assertEquals(Arrays.asList(headerValue), this.response.getHeaders().get(headerName));
+		assertEquals(Collections.singletonList(headerValue), this.response.getHeaders().get(headerName));
+		assertTrue(this.response.getHeaders().containsKey(headerName));
+		assertEquals(headerValue, this.response.getHeaders().getFirst(headerName));
+		assertEquals(headerValue, this.response.getHeaders().getAccessControlAllowOrigin());
 	}
 
 	@Test
@@ -92,4 +98,5 @@ public class ServletServerHttpResponseTests {
 
 		assertArrayEquals("Invalid content written", content, mockResponse.getContentAsByteArray());
 	}
+
 }
